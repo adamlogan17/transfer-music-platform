@@ -4,9 +4,11 @@ import axios from 'axios';
 function App() {
 	const [response, setResponse] = useState('');
 
+  const apiUrl:string = import.meta.env.VITE_APP_API_URL;
+
 	async function callApi() {
 		try {
-			const result = await axios.get('http://localhost:5000/api');
+			const result = await axios.get(`${apiUrl}/api`);
 			setResponse(result.data);
 		} catch (error) {
 			console.error('Error fetching data', error);
