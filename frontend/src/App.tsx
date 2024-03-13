@@ -1,49 +1,46 @@
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 
+async function getAccessToken() {
+  const apiUrl: string = import.meta.env.VITE_APP_API_URL;
+
+  try {
+    const spotifyAccess = await axios.get(
+      `${apiUrl}/spotify/access-token/${new URLSearchParams(window.location.search).get('code')}`
+    );
+
+    localStorage.setItem('spotify_access_token', spotifyAccess.data.access_token);
+    return await getPlaylists(spotifyAccess.data.access_token);
+
+  } catch (error) {
+  }
+}
+
+async function getPlaylists(accessToken: string) {
+  const apiUrl: string = import.meta.env.VITE_APP_API_URL;
+
+  try {
+    const playlists = await axios.get(`${apiUrl}/spotify/all-playlists`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
+    console.log(playlists);
+    return playlists.data.playlists;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+}
+
 function App() {
 	const apiUrl: string = import.meta.env.VITE_APP_API_URL;
   const [playlists, setPlaylists] = useState([]);
 
-  async function getAccessToken() {
-    const apiUrl: string = import.meta.env.VITE_APP_API_URL;
-  
-    try {
-      const spotifyAccess = await axios.get(
-        `${apiUrl}/spotify/access-token/${new URLSearchParams(window.location.search).get('code')}`
-      );
-  
-      console.log(spotifyAccess);
-  
-      localStorage.setItem('spotify_access_token', spotifyAccess.data.access_token);
-      console.log(spotifyAccess.data.access_token);
-      getPlaylists(spotifyAccess.data.access_token);
-  
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
-  function getPlaylists(accessToken: string) {
-    console.log("foo", accessToken);
-    const apiUrl: string = import.meta.env.VITE_APP_API_URL;
-  
-    axios.get(`${apiUrl}/spotify/all-playlists`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    }).then((response) => {
-      console.log(response);
-      setPlaylists(response.data.items);
-    }).catch((error) => {
-      console.log(error);
-    });
-  }
-
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code');
     if (code) {
-      getAccessToken();
+      getAccessToken().then((playlists) => { setPlaylists(playlists) })
     }
   }, []);
 
@@ -67,7 +64,7 @@ function App() {
         {playlists.map((playlist:any) => (
           <li key={playlist.id}>{playlist.name}</li>
         ))}
-      </ul>    
+      </ul>
 		</>
 	);
 }

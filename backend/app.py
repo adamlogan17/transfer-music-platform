@@ -5,6 +5,7 @@ from os import environ
 import urllib.parse
 import base64
 import requests
+import copy
 
 app = Flask(__name__)
 CORS(app, origins="http://localhost:5173")
@@ -15,7 +16,6 @@ REDIRECT_SITE = environ.get('REDIRECT_SITE')
 
 @app.route('/api', methods=['GET'])
 def test():
-    print(SPOTIFY_CLIENT_ID)
     return jsonify({'name': 'alice',
                         'email': 'alice@outlook.com'})
 
@@ -36,7 +36,6 @@ def spotifyLogin():
 
 @app.route('/spotify/access-token/<code>', methods=['GET'])
 def getAccessToken(code):
-    print("code", code)
     auth_header = base64.b64encode(f'{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}'.encode('utf-8')).decode('utf-8')
 
     auth_options = {
@@ -54,15 +53,59 @@ def getAccessToken(code):
 
     return requests.post(**auth_options).json()
 
-# need to make sure all playlists are returned (there is a 'total' for number of playlists)
 # https://developer.spotify.com/documentation/web-api/reference/get-list-users-playlists
 @app.route('/spotify/all-playlists', methods=['GET'])
 def getAllPlaylists():
-    access_token = request.headers.get('Authorization').split()[1]
+    accessToken = request.headers.get('Authorization').split()[1]
+    if not accessToken:
+        return jsonify({'error': 'No access token provided'}), 401
+    maxReturnedPlaylists = 50
 
     headers = {
-        'Authorization': f'Bearer {access_token}'
+        'Authorization': f'Bearer {accessToken}'
     }
-    return requests.get('https://api.spotify.com/v1/me/playlists', headers=headers).json()
+    initialResponse = requests.get(f'https://api.spotify.com/v1/me/playlists?limit={maxReturnedPlaylists}', headers=headers).json()
+    try:
+        totalPlaylists = initialResponse['total']
+    except KeyError:
+        return jsonify({'error': 'Internal Error'}), 400
+
+    allPlaylists = getPlaylistTracks(accessToken, initialResponse['items'])
+
+    callFit = totalPlaylists / maxReturnedPlaylists
+    numOfCalls = int(callFit) if callFit.is_integer() else int(callFit) + 1
+
+    for i in range(1, numOfCalls):
+        offset = i * maxReturnedPlaylists
+        response = requests.get(f'https://api.spotify.com/v1/me/playlists?offset={offset}&limit={maxReturnedPlaylists}', headers=headers).json()
+        addTracks = getPlaylistTracks(accessToken, response['items'])
+        allPlaylists.extend(addTracks)
+
+    return jsonify({'playlists': allPlaylists})
+
+def getPlaylistTracks(accessToken, initialPlaylists):
+    playlists = copy.deepcopy(initialPlaylists)
+
+    maxReturnedTracks = 50
+    headers = {
+        'Authorization': f'Bearer {accessToken}'
+    }
+    for playlist in playlists:
+        print(playlist['name'])
+        callFit = playlist['tracks']['total'] / maxReturnedTracks
+        numOfCalls = int(callFit) if callFit.is_integer() else int(callFit) + 1
+        allTracks = []
+
+        for i in range(0, numOfCalls):
+            offset = i * maxReturnedTracks
+            try:
+                tracksResponse = requests.get(f'{playlist['tracks']['href']}/?offset={offset}&limit={maxReturnedTracks}&fields=items(track(album,id,name,track_number,artists,href,external_urls,external_ids))', headers=headers).json()
+                allTracks.extend(tracksResponse['items'])
+            except:
+                print("Error getting tracks for playlist: ", playlist['name'])
+        
+        playlist['trackInfo'] = allTracks
+    return playlists
+
 
 app.run()
