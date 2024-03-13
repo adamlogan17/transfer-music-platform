@@ -34,6 +34,7 @@ def spotifyLogin():
     
     return jsonify({'url' : f'https://accounts.spotify.com/authorize?{params}'})
 
+# change to POST and send code in body
 @app.route('/spotify/access-token/<code>', methods=['GET'])
 def getAccessToken(code):
     auth_header = base64.b64encode(f'{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}'.encode('utf-8')).decode('utf-8')
@@ -69,43 +70,52 @@ def getAllPlaylists():
         totalPlaylists = initialResponse['total']
     except KeyError:
         return jsonify({'error': 'Internal Error'}), 400
+    
+    allPlaylists = initialResponse['items'].extend(multiRequest('https://api.spotify.com/v1/me/playlists', maxReturnedPlaylists, totalPlaylists, headers, startOffset=1))
 
-    allPlaylists = getPlaylistTracks(accessToken, initialResponse['items'])
-
-    callFit = totalPlaylists / maxReturnedPlaylists
-    numOfCalls = int(callFit) if callFit.is_integer() else int(callFit) + 1
-
-    for i in range(1, numOfCalls):
-        offset = i * maxReturnedPlaylists
-        response = requests.get(f'https://api.spotify.com/v1/me/playlists?offset={offset}&limit={maxReturnedPlaylists}', headers=headers).json()
-        addTracks = getPlaylistTracks(accessToken, response['items'])
-        allPlaylists.extend(addTracks)
+    allPlaylists = getMultiplePlaylistsTracks(initialResponse['items'], accessToken)
 
     return jsonify({'playlists': allPlaylists})
 
-def getPlaylistTracks(accessToken, initialPlaylists):
+# Need to call playlist endpoint to check for total number of tracks, need to see if this already just gives all tracks (if not continue with skelton below)
+# app.route('/spotify/playlist-tracks/<playlistId>', methods=['GET'])
+# def getAllPlaylistTracks(playlistId):
+#     accessToken = request.headers.get('Authorization').split()[1]
+#     if not accessToken:
+#         return jsonify({'error': 'No access token provided'}), 401
+    
+#     return jsonify({'tracks': getPlaylistTracks(playlistId, totalPlaylistTracks, accessToken)})
+
+def getMultiplePlaylistsTracks(initialPlaylists, accessToken):
     playlists = copy.deepcopy(initialPlaylists)
 
+    for playlist in playlists:
+        print(playlist['name'])
+        playlist['tracks'] = getPlaylistTracks(playlist['id'], playlist['tracks']['total'], accessToken)
+    return playlists
+
+def getPlaylistTracks(playlistId, totalTracks, accessToken, fields='items(track(album,id,name,track_number,artists,href,external_urls,external_ids)'):
     maxReturnedTracks = 50
     headers = {
         'Authorization': f'Bearer {accessToken}'
     }
-    for playlist in playlists:
-        print(playlist['name'])
-        callFit = playlist['tracks']['total'] / maxReturnedTracks
-        numOfCalls = int(callFit) if callFit.is_integer() else int(callFit) + 1
-        allTracks = []
+    allTracks = [track['track'] for track in multiRequest(f'https://api.spotify.com/v1/playlists/{playlistId}/tracks?fields={fields}', maxReturnedTracks, totalTracks, headers)]
+    return allTracks
 
-        for i in range(0, numOfCalls):
-            offset = i * maxReturnedTracks
-            try:
-                tracksResponse = requests.get(f'{playlist['tracks']['href']}/?offset={offset}&limit={maxReturnedTracks}&fields=items(track(album,id,name,track_number,artists,href,external_urls,external_ids))', headers=headers).json()
-                allTracks.extend(tracksResponse['items'])
-            except:
-                print("Error getting tracks for playlist: ", playlist['name'])
-        
-        playlist['trackInfo'] = allTracks
-    return playlists
+def multiRequest(endpoint, maxReturned, totalToReturn, headers, startOffset=0, baseKey='items'):
+    callFit = totalToReturn / maxReturned
+    numOfCalls = int(callFit) if callFit.is_integer() else int(callFit) + 1
+    allItems = []
 
+    endpoint += '&' if '?' in endpoint else '?'
+
+    for i in range(startOffset, numOfCalls):
+        offset = i * maxReturned
+        try:
+            response = requests.get(f'{endpoint}offset={offset}&limit={maxReturned}', headers=headers).json()
+        except:
+            response[baseKey] = f'Error getting for off set: {offset}'
+        allItems.extend(response[baseKey])
+    return allItems
 
 app.run()
