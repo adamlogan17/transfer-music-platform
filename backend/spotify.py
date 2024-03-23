@@ -59,7 +59,7 @@ def getAllPlaylists(accessToken):
         totalPlaylists = initialResponse['total']
     except KeyError:
         return initialResponse
-    
+        
     allPlaylists = initialResponse['items'].extend(multiRequest('{BASEURI}/me/playlists', MAXRETURNEDPLAYLISTS, totalPlaylists, headers, startOffset=1))
 
     allPlaylists = getMultiplePlaylistsTracks(initialResponse['items'], accessToken)
@@ -151,10 +151,6 @@ def spotifyTrackSearch(trackName, artistName, albumName, accessToken, isrc=None,
 
 if __name__ == '__main__':
     PERSONAL_ACCESS_TOKEN = environ.get('SPOTIFY_PERSONAL_ACCESS_TOKEN')
-    running = '6lXye8XgLjOcLaxejerfnc'
-    recommended = '0qcIskGBpBWmKKlbUxzJpF'
-    # allPlaylists = createPlaylist("py works", PERSONAL_ACCESS_TOKEN)
-    # print(allPlaylists)
 
     tracks = [
         {
@@ -174,4 +170,6 @@ if __name__ == '__main__':
         }
     ]
 
-    createPlaylist('py works 2', PERSONAL_ACCESS_TOKEN, tracks=tracks)
+    # createPlaylist('py works 2', PERSONAL_ACCESS_TOKEN, tracks=tracks)
+
+    getAllPlaylists(PERSONAL_ACCESS_TOKEN)
