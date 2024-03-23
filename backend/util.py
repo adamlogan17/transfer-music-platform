@@ -19,3 +19,7 @@ def multiRequest(endpoint, maxReturned, totalToReturn, headers, startOffset=0, b
 
 def prettyDict(d):
     print(json.dumps(d, indent=4))
+
+def putInJsonFile(data, filename='output.json'):
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent=2)
