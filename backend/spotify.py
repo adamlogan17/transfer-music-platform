@@ -5,6 +5,7 @@ import requests
 import copy
 from dotenv import load_dotenv
 from util import *
+import threading
 
 load_dotenv()
 SPOTIFY_CLIENT_ID = environ.get('SPOTIFY_CLIENT_ID')
@@ -54,7 +55,9 @@ def getAllPlaylists(accessToken):
     headers = {
         'Authorization': f'Bearer {accessToken}'
     }
+
     initialResponse = requests.get(f'{BASEURI}/me/playlists?limit={MAXRETURNEDPLAYLISTS}', headers=headers).json()
+    
     try:
         totalPlaylists = initialResponse['total']
     except KeyError:
@@ -68,7 +71,6 @@ def getAllPlaylists(accessToken):
 
 def getMultiplePlaylistsTracks(initialPlaylists, accessToken):
     playlists = copy.deepcopy(initialPlaylists)
-
     for playlist in playlists:
         if __name__ == '__main__':
             print(playlist['name'], playlist['id'])
@@ -76,7 +78,7 @@ def getMultiplePlaylistsTracks(initialPlaylists, accessToken):
         playlist['tracks'] = getPlaylistTracks(playlist['id'], accessToken, totalTracks=playlist['tracks']['total'])
     return playlists
 
-def getPlaylistTracks(playlistId, accessToken, totalTracks=None, fields='items(track(album,id,name,track_number,artists,href,external_urls,external_ids)'):
+def getPlaylistTracks(playlistId, accessToken, totalTracks=None, fields='items(track(album,id,name,track_number,artists,href,external_urls,external_ids,uri)'):
     MAXRETURNEDTRACKS = 50
     headers = {
         'Authorization': f'Bearer {accessToken}'
@@ -89,23 +91,22 @@ def getPlaylistTracks(playlistId, accessToken, totalTracks=None, fields='items(t
             return 'ERROR: Playlist does not exist'
 
     allTracks = [track['track'] for track in multiRequest(f'{BASEURI}/playlists/{playlistId}/tracks?fields={fields}', MAXRETURNEDTRACKS, totalTracks, headers)]
+        
     return allTracks
 
-# TODO fix the issue were the max tracks that can be added to a playlist is 100
-def addTracksToPlaylist(playlistId, tracks, accessToken):
+# TODO Maybe add an additional 'fuzzy search' to filter spotifies own search results rather than taking the first one
+def addTracksToPlaylist(playlistId, tracks, accessToken, albumNamePath=['album'], trackNamePath=['track'], artistPath=['artist'], isrcPath=None, order=False):
     headers = {
         'Authorization': f'Bearer {accessToken}'
     }
 
     uriOfTracks = []
+    maxTracksThatCanBeAdded = 50
 
-    for track in tracks:
-        try:
-            uriOfTracks.append(track['uri'])
-        except KeyError:
-            uriOfTracks.append(spotifyTrackSearch(track['track'], track['artist'], track['album'], accessToken)[0]['uri'])
+    uriOfTracks = multiThreadRequest(lambda offset: spotifyTrackSearch(getNestedItem(tracks[offset], trackNamePath), getNestedItem(tracks[offset], artistPath), getNestedItem(tracks[offset], albumNamePath), accessToken)[0]['uri'], 1, len(tracks))
 
-    requests.post(f'{BASEURI}/playlists/{playlistId}/tracks', headers=headers, json={'uris': uriOfTracks})
+    multiThreadRequest(lambda offset: requests.post(f'{BASEURI}/playlists/{playlistId}/tracks', headers=headers, json={'uris': uriOfTracks[offset:offset + maxTracksThatCanBeAdded]}), maxTracksThatCanBeAdded, len(uriOfTracks))
+        
 
 def createPlaylist(name, accessToken, tracks=[], description='', public=False):
     headers = {
@@ -129,9 +130,12 @@ def createPlaylist(name, accessToken, tracks=[], description='', public=False):
         return 'ERROR: Could not create playlist'
     
     if tracks:
-        addTracksToPlaylist(newPlaylistId, tracks, accessToken)
+        addTracksToPlaylist(newPlaylistId, tracks, accessToken, albumNamePath=['album','name'], trackNamePath=['name'], artistPath=['artists', 0])
 
 def spotifyTrackSearch(trackName, artistName, albumName, accessToken, isrc=None, market='GB'):
+    if __name__ == '__main__':
+        print("Started searching for track ", trackName)
+
     headers = {
         'Authorization': f'Bearer {accessToken}'
     }
@@ -147,14 +151,16 @@ def spotifyTrackSearch(trackName, artistName, albumName, accessToken, isrc=None,
 
     query = urllib.parse.urlencode(searchParams)
     url = f'{BASEURI}/search?q={query}&type=track&market={market}'
-    return requests.get(url, headers=headers).json()['tracks']['items']
+    results = requests.get(url, headers=headers).json()['tracks']['items']
+    print(f"Finished searching for track {results[0]['name']}")
+    return results
 
 if __name__ == '__main__':
     PERSONAL_ACCESS_TOKEN = environ.get('SPOTIFY_PERSONAL_ACCESS_TOKEN')
 
     tracks = [
         {
-            'track': 'The Less I Know The Better',
+            'track': 'The Less I know the better',
             'artist': 'Tame Impala',
             'album': 'Currents'
         },
@@ -170,6 +176,6 @@ if __name__ == '__main__':
         }
     ]
 
-    # createPlaylist('py works 2', PERSONAL_ACCESS_TOKEN, tracks=tracks)
-
-    getAllPlaylists(PERSONAL_ACCESS_TOKEN)
+    allPlaylists = getAllPlaylists(PERSONAL_ACCESS_TOKEN)
+    
+    createPlaylist('unordered playlist', PERSONAL_ACCESS_TOKEN, tracks=allPlaylists[0]['tracks'])

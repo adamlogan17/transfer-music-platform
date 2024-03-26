@@ -3,3 +3,4 @@ __pycache__
 .env
 client_secrets.json
 output.json
+.idea
