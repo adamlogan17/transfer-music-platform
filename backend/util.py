@@ -3,67 +3,127 @@ import requests
 import threading
 import copy
 
-def makeRequest(endpoint, headers, offset, maxReturned, baseKey, offsetKey, limitKey, requestType, body):
+
+def make_request(
+    endpoint,
+    headers,
+    offset,
+    max_returned,
+    base_key,
+    offset_key,
+    limit_key,
+    request_type,
+    body,
+):
     response = {}
     try:
-        if requestType == 'GET':
-            response = requests.get(f'{endpoint}{offsetKey}={offset}&{limitKey}={maxReturned}', headers=headers).json()
-        elif requestType == 'POST':
-            response = requests.post(f'{endpoint}{offsetKey}={offset}&{limitKey}={maxReturned}', headers=headers, json=body).json()
-        elif requestType == 'PUT':
-            response = requests.put(f'{endpoint}{offsetKey}={offset}&{limitKey}={maxReturned}', headers=headers, json=body).json()
-        elif requestType == 'DELETE':
-            response = requests.delete(f'{endpoint}{offsetKey}={offset}&{limitKey}={maxReturned}', headers=headers).json()
+        if request_type == "GET":
+            response = requests.get(
+                f"{endpoint}{offset_key}={offset}&{limit_key}={max_returned}",
+                headers=headers,
+            ).json()
+        elif request_type == "POST":
+            response = requests.post(
+                f"{endpoint}{offset_key}={offset}&{limit_key}={max_returned}",
+                headers=headers,
+                json=body,
+            ).json()
+        elif request_type == "PUT":
+            response = requests.put(
+                f"{endpoint}{offset_key}={offset}&{limit_key}={max_returned}",
+                headers=headers,
+                json=body,
+            ).json()
+        elif request_type == "DELETE":
+            response = requests.delete(
+                f"{endpoint}{offset_key}={offset}&{limit_key}={max_returned}",
+                headers=headers,
+            ).json()
     except:
-        response[baseKey] = f'Error getting for offset: {offset}'
+        response[base_key] = f"Error getting for offset: {offset}"
     return response
 
 
 # TODO Make this available for post and put requests
-def multiRequest(endpoint, maxReturned, totalToReturn, headers, startOffset=0, baseKey='items', offsetKey='offset', limitKey='limit', requestType='GET', body={}):
-    endpoint += '&' if '?' in endpoint else '?'
+def multi_request(
+    endpoint,
+    max_returned,
+    totalToReturn,
+    headers,
+    startOffset=0,
+    base_key="items",
+    offset_key="offset",
+    limit_key="limit",
+    request_type="GET",
+    body={},
+):
+    endpoint += "&" if "?" in endpoint else "?"
 
-    return multiThreadRequest(lambda offset: makeRequest(endpoint, headers, offset, maxReturned, baseKey, offsetKey, limitKey, requestType, body)[baseKey], maxReturned, totalToReturn, startOffset=startOffset)
+    return multi_thread_request(
+        lambda offset: make_request(
+            endpoint,
+            headers,
+            offset,
+            max_returned,
+            base_key,
+            offset_key,
+            limit_key,
+            request_type,
+            body,
+        )[base_key],
+        max_returned,
+        totalToReturn,
+        start_offset=startOffset,
+    )
 
-def prettyDict(d):
+
+def pretty_dict(d):
     print(json.dumps(d, indent=4))
 
-def putInJsonFile(data, filename='output.json'):
-    with open(filename, 'w') as f:
+
+def put_in_json_file(data, filename="output.json"):
+    with open(filename, "w") as f:
         json.dump(data, f, indent=2)
 
-def getNestedItem(data, path):
+
+def get_nested_item(data, path):
     for key in path:
         data = data[key]
     return data
 
-def multiThreadRequest(request, maxReturned, totalToReturn, startOffset=0):
-    callFit = totalToReturn / maxReturned
-    numOfCalls = int(callFit) if callFit.is_integer() else int(callFit) + 1
-    allItems = [None for i in range(startOffset, numOfCalls)]
-    allThreads = []
-    for i in range(startOffset, numOfCalls):
-        offset = i * maxReturned
-        # for some reason when this is not a lambda function, it simply waits until one thread is finished to start the next one
-        t = threading.Thread(target=lambda i, offset: addUniqueId(allItems, request(offset), i), args=(i, offset))
-        t.start()
-        allThreads.append(t)
 
-    for t in allThreads:
+def multi_thread_request(request, max_returned, totalToReturn, start_offset=0):
+    call_fit = totalToReturn / max_returned
+    num_of_calls = int(call_fit) if call_fit.is_integer() else int(call_fit) + 1
+    all_items = [None for i in range(start_offset, num_of_calls)]
+    all_threads = []
+    for i in range(start_offset, num_of_calls):
+        offset = i * max_returned
+        # for some reason when this is not a lambda function, it simply waits until one thread is finished to start the next one
+        t = threading.Thread(
+            target=lambda i, offset: add_unique_id(all_items, request(offset), i),
+            args=(i, offset),
+        )
+        t.start()
+        all_threads.append(t)
+
+    for t in all_threads:
         t.join()
 
     # as the 'request' function may return a list of its own this needs to be spread and entered into the returned array
-    test = []
+    one_dim_array = []
 
-    for item in allItems:
-        extendOrAppend(test, item)
-    
-    return test
+    for item in all_items:
+        extend_or_append(one_dim_array, item)
 
-def addUniqueId(data, value, id):
+    return one_dim_array
+
+
+def add_unique_id(data, value, id):
     data[id] = value
 
-def extendOrAppend(data, value):
+
+def extend_or_append(data, value):
     if type(value) == list:
         data.extend(value)
     else:
