@@ -6,7 +6,7 @@ import urllib.parse
 import base64
 import requests
 import copy
-from spotify import getAccessToken, getAllPlaylists, multiRequest, createPlaylist, spotifyLogin
+from spotify import get_access_token, get_all_playlists, multiRequest, create_playlist, spotify_login
 
 app = Flask(__name__)
 CORS(app, origins="http://localhost:5173")
@@ -24,12 +24,12 @@ def test():
 
 @app.route('/spotify/login-page', methods=['GET'])
 def spotifyLoginEndpoint():
-    return jsonify({'url' : spotifyLogin() })
+    return jsonify({'url' : spotify_login() })
 
 # change to POST and send code in body
 @app.route('/spotify/access-token/<code>', methods=['GET'])
 def getAccessTokenEndpoint(code):
-    return getAccessToken(code)
+    return get_access_token(code)
 
 # https://developer.spotify.com/documentation/web-api/reference/get-list-users-playlists
 @app.route('/spotify/all-playlists', methods=['GET'])
@@ -39,7 +39,7 @@ def getAllPlaylistsEndpoint():
         return jsonify({'error': 'No access token provided'}), 401
     
 
-    return jsonify({'playlists': getAllPlaylists(accessToken)})
+    return jsonify({'playlists': get_all_playlists(accessToken)})
 
 # Need to call playlist endpoint to check for total number of tracks, need to see if this already just gives all tracks (if not continue with skelton below)
 # app.route('/spotify/playlist-tracks/<playlistId>', methods=['GET'])
@@ -56,6 +56,6 @@ def createPlaylistEndpoint():
     if not accessToken:
         return jsonify({'error': 'No access token provided'}), 401
     
-    return createPlaylist(accessToken)
+    return create_playlist(accessToken)
 
 app.run()
