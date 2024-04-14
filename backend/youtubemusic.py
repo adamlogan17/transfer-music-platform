@@ -1,6 +1,10 @@
 from google_auth_oauthlib.flow import InstalledAppFlow
 import requests
-from googleapiclient.discovery import build
+
+import util
+from Types import Playlist, Image, Song
+
+from util import put_in_json_file
 
 
 def get_auth_url():
@@ -17,14 +21,6 @@ def get_auth_url():
 
 
 def get_access_token(code):
-    """I am not sure how to get the flow stuff working without having this as direclty as the docs just have 'auth"""
-    # flow = InstalledAppFlow.from_client_secrets_file(
-    #     'client_secrets.json',
-    #     scopes=['https://www.googleapis.com/auth/drive.metadata.readonly'],
-    #     state=state)
-    # flow.redirect_uri = "http://localhost:5173"
-    # return flow.fetch_token(authorization_response="")
-
     url = 'https://oauth2.googleapis.com/token'
     data = {
         'code': code,
@@ -39,10 +35,70 @@ def get_access_token(code):
 
     return requests.post(url, data=data, headers=headers).json()['access_token']
 
-def get_playlists(access_token):
+def get_playlist_songs(access_token, playlist_id):
+    """Returns an array of Songs that are in the playlist"""
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    return requests.get("https://youtube.googleapis.com/youtube/v3/channels?part=snippet%2CcontentDetails%2Cstatistics%2C%20id&part=id&mine=true", headers=headers).json()
+    # It appears YouTube identifies if a video is a 'song' is by the string below being contained within the
+    # video owner channel
+    song_identifier = ' - Topic'
+
+    videos = requests.get(f"https://youtube.googleapis.com/youtube/v3/playlistItems?part=contentDetails,snippet&maxResults=50&playlistId={playlist_id}",headers=headers).json()['items']
+    songs = []
+
+    for video in videos:
+        if video['snippet']['videoOwnerChannelTitle'].endswith(song_identifier):
+            title = video['snippet']['title']
+            artist = video['snippet']['videoOwnerChannelTitle'][:-len(song_identifier)]
+
+            # The album name appears after the second set of 2 new line characters, within the description and
+            # the below filters this out
+            description = video['snippet']['description']
+            count = 0
+            album = ""
+            for i in range(1, len(description)):
+                if description[i - 1] == '\n' and description[i] == '\n':
+                    count += 1
+                if count == 2:
+                    album += description[i]
+            # need to remove the first and last characters of the string as these are new line characters
+            album = album[1:-1]
+            songs.append(Song(title, album, artist, ""))
+
+    return songs
+
+def get_playlists(access_token):
+    """
+    It is important to note that the account must be a YouTube channel rather than a generic account for the API
+    to return the playlist IDs.
+    TODO need to make the playlists, use multi_request, though I might need to modify this or create a new function
+    TODO separate out getting the songs from the playlist, into it's own function
+    due to the API not using numbers for the offset, but a nextPage keyword
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    url = "https://youtube.googleapis.com/youtube/v3/playlists?part=id,contentDetails,snippet&mine=true&maxResults=50"
+
+    all_playlist_info = requests.get(url, headers=headers).json()
+
+    all_playlist_info = all_playlist_info['items']
+
+    filtered_playlist = []
+
+    for playlist in all_playlist_info:
+        songs = get_playlist_songs(access_token, playlist['id'])
+
+        if len(songs) > 0:
+            filtered_playlist.append(Playlist(
+                playlist['id'],
+                [Image(image['url'], image['height'], image['width']) for image in playlist['snippet']['thumbnails'].values()],
+                playlist['snippet']['title'],
+                playlist['snippet']['description'],
+                songs
+            ))
+
+    return filtered_playlist
+
 
 if __name__ == '__main__':
     auth_url = get_auth_url()
@@ -53,7 +109,9 @@ if __name__ == '__main__':
     access_token = get_access_token(code)
 
     print(access_token)
+    # access_token = ""
 
     playlists = get_playlists(access_token)
-
     print(playlists)
+    print(len(playlists))
+

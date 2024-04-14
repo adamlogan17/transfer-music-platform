@@ -1,4 +1,10 @@
-# transfer-music-platform
+# transfer-music-platform (WIP)
+
+This is a web application to assist in
+
+Currently this is a work in progress (WIP) and therefore many features are not implemented yet. Please have a look at the [TODO](#TODO) section of this README to view what still is required to be completed and other ideas which I have.
+
+If you have any suggestions or comments feel free to contact me through email <adamlogan42@gmail.com>, any ideas/advice would be much appreciated!!
 
 ## Resources Used for Development
 
@@ -16,8 +22,6 @@
 
 ### Environment Variables
 
-- SPOTIFY_CLIENT_ID : The ID of the client 
-
 ### Authorise Google App
 
 - The server needs to be added as a 'Authorised redirect URI' and has be <http://localhost:5000/> and not <http://localhost:5000>
@@ -31,3 +35,15 @@
     - An object of the Youtube class would be a user account so would need to have an attribute of access_token (this would be a requirement from the interface class)
     - Static attributes need to be used for the client secrets and client IDs for the platform
     - Need to double check about static attributes for interfaces, but the redirect site would be good to have as this
+- Maybe make a database table that could act as like a cache and it would have title,album,artist,isrc,(spotify unique ID),(youtube video ID),(deezer unique ID),etc
+  - This has the possibility of speeding up the process as db queries should be faster then searching the API, and hopefully iy will be more reliable becuase I can map the correct song IDs accross each platform
+  - Not sure though how to verify a song is correct without human intervention, but this may just have to happen
+- Documentation
+  - Need to improve this README
+  - If implementing the above OOP idea, need to create class diagram
+  - Need to create flowchart for the db stuff if implementing it (maybe do this)
+  - Need to add docstrings to all functions
+  - Need to add instructions on how to set up Spotify to use the API
+  - Need to complete the section in the README on environment variables
+- Need to build frontend (will divide up later as soon as backend is completed)
+- Eventually dockerise everything and deploy on the cloud (thinking Azure at the minute)
