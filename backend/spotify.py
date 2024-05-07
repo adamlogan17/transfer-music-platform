@@ -75,7 +75,7 @@ def get_all_playlists(accessToken):
             MAXRETURNEDPLAYLISTS,
             total_playlists,
             headers,
-            startOffset=1,
+            start_offset=1,
         )
     )
 

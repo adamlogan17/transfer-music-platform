@@ -48,9 +48,9 @@ def make_request(
 def multi_request(
     endpoint,
     max_returned,
-    totalToReturn,
+    total_to_return,
     headers,
-    startOffset=0,
+    start_offset=0,
     base_key="items",
     offset_key="offset",
     limit_key="limit",
@@ -72,8 +72,8 @@ def multi_request(
             body,
         )[base_key],
         max_returned,
-        totalToReturn,
-        start_offset=startOffset,
+        total_to_return,
+        start_offset=start_offset,
     )
 
 
@@ -92,14 +92,15 @@ def get_nested_item(data, path):
     return data
 
 
-def multi_thread_request(request, max_returned, totalToReturn, start_offset=0):
-    call_fit = totalToReturn / max_returned
+def multi_thread_request(request, max_returned, total_to_return, start_offset=0):
+    call_fit = total_to_return / max_returned
     num_of_calls = int(call_fit) if call_fit.is_integer() else int(call_fit) + 1
     all_items = [None for i in range(start_offset, num_of_calls)]
     all_threads = []
     for i in range(start_offset, num_of_calls):
         offset = i * max_returned
-        # for some reason when this is not a lambda function, it simply waits until one thread is finished to start the next one
+        # for some reason when this is not a lambda function, it simply
+        # waits until one thread is finished to start the next one
         t = threading.Thread(
             target=lambda i, offset: add_unique_id(all_items, request(offset), i),
             args=(i, offset),
