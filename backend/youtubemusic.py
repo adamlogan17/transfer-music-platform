@@ -3,6 +3,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 import requests
 from Types import Playlist, Image, Song
 
+BASEURI = "https://youtube.googleapis.com/youtube/v3"
+
 
 def get_auth_url():
     flow = InstalledAppFlow.from_client_secrets_file(
@@ -33,6 +35,39 @@ def get_access_token(code):
     return requests.post(url, data=data, headers=headers).json()['access_token']
 
 
+def retrieve_album_name(description):
+    """
+    The album name appears after the second set of 2 new line characters, within the description and
+    the below filters this out
+    """
+    count = 0
+    album = ""
+    for i in range(1, len(description)):
+        if description[i - 1] == '\n' and description[i] == '\n':
+            count += 1
+        if count == 2:
+            album += description[i]
+    # need to remove the first and last characters of the string as these are new line characters
+    album = album[1:-1]
+
+    return album
+
+
+def extract_song(video, song_identifier=' - Topic'):
+    # TODO Maybe make song_identifier a global variable as it is used in multiple places and always needs to be the same
+    artist = ''
+    title = video['snippet']['title']
+
+    # When searching the artist is stored within channelTitle but if retrieved from a playlist
+    # it is within 'videoOwnerChannelTitle
+    try:
+        artist = video['snippet']['videoOwnerChannelTitle'][:-len(song_identifier)]
+    except KeyError:
+        artist = video['snippet']['channelTitle'][:-len(song_identifier)]
+    album = retrieve_album_name(video['snippet']['description'])
+    return Song(title, album, artist, "")
+
+
 def get_playlist_songs(access_token, playlist_id):
     """Returns an array of Songs that are in the playlist"""
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -41,7 +76,7 @@ def get_playlist_songs(access_token, playlist_id):
     # video owner channel
     song_identifier = ' - Topic'
 
-    url = f"https://youtube.googleapis.com/youtube/v3/playlistItems?part=contentDetails,snippet&maxResults=1&playlistId={playlist_id}"
+    url = f"{BASEURI}/playlistItems?part=contentDetails,snippet&maxResults=50&playlistId={playlist_id}"
 
     videos = youtube_multi_request(url, headers)
 
@@ -49,22 +84,7 @@ def get_playlist_songs(access_token, playlist_id):
 
     for video in videos:
         if video['snippet']['videoOwnerChannelTitle'].endswith(song_identifier):
-            title = video['snippet']['title']
-            artist = video['snippet']['videoOwnerChannelTitle'][:-len(song_identifier)]
-
-            # The album name appears after the second set of 2 new line characters, within the description and
-            # the below filters this out
-            description = video['snippet']['description']
-            count = 0
-            album = ""
-            for i in range(1, len(description)):
-                if description[i - 1] == '\n' and description[i] == '\n':
-                    count += 1
-                if count == 2:
-                    album += description[i]
-            # need to remove the first and last characters of the string as these are new line characters
-            album = album[1:-1]
-            songs.append(Song(title, album, artist, ""))
+            songs.append(extract_song(video, song_identifier=song_identifier))
 
     return songs
 
@@ -78,7 +98,7 @@ def get_playlists(access_token):
     """
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    url = "https://youtube.googleapis.com/youtube/v3/playlists?part=id,contentDetails,snippet&mine=true&maxResults=1"
+    url = f"{BASEURI}/playlists?part=id,contentDetails,snippet&mine=true&maxResults=50"
 
     all_playlist_info = youtube_multi_request(url, headers, thread_task=lambda playlists, index: filter_playlists(playlists, index, access_token))
 
@@ -141,6 +161,47 @@ def youtube_multi_request(url, headers, item_key="items", thread_task=None):
     return all_info
 
 
+def search_song(name, artist, album, access_token):
+    """
+    TODO Maybe remove the album name as it doesn't fit well in the google search
+    TODO Maybe add an optional duaration but check this with the 'videoDuration' documentation as this only allows for long, medium and large
+    TODO Switch to use multi request
+    """
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    query = f"{name} {artist}"
+
+    # This is thr topic ID for music and is used to narrow the search
+    # Topic ID's can be found at https://developers.google.com/youtube/v3/docs/search/list
+    music_topic_id = "/m/04rlf"
+
+    url = f"{BASEURI}/search?type=video&topicId={music_topic_id}&q={query}"
+
+    response = requests.get(url, headers=headers).json()
+
+    return response['items'][0]['id']['videoId']
+
+
+def get_video_details(videoIds, access_token):
+    """
+    TODO Switch to using multi request
+    """
+    test = ["dd"]
+
+    print(','.join(test))
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{BASEURI}/videos?part=snippet,contentDetails&id={','.join(videoIds)}"
+    response = requests.get(url, headers=headers).json()
+
+    songs = []
+    for video in response['items']:
+        print(video)
+        songs.append(extract_song(video))
+
+    return songs
+
+
 if __name__ == '__main__':
     # auth_url = get_auth_url()
     # print(auth_url)
@@ -156,5 +217,11 @@ if __name__ == '__main__':
     playlists = get_playlists(access_token)
     print(playlists)
     print(len(playlists))
+
+    # song = search_song("Outlaw Man - 2013 Remaster", "Eagles", "Desperado", access_token)
+
+    video_details = get_video_details(['0Mu0c2iwC2E'], access_token)
+
+    print(video_details)
 
 
